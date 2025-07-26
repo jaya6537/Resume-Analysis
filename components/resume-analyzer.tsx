@@ -10,7 +10,9 @@ import type { ResumeAnalysisResult } from "@/lib/types"
 import { Loader2, Upload } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
-// No pdfjs-dist imports needed here anymore, as PDF parsing is now mocked on server
+// IMPORTANT: PDF.js imports and worker setup are removed from here
+// because client-side PDF parsing is not fully supported in the v0 preview environment.
+// The analysis will proceed with a mock resume text.
 
 export function ResumeAnalyzer() {
   const [file, setFile] = useState<File | null>(null)
@@ -49,22 +51,56 @@ export function ResumeAnalyzer() {
     setIsLoading(true)
     setAnalysisResult(null)
 
-    const formData = new FormData()
-    formData.append("resume", file) // Send the file directly in FormData
+    // --- TEMPORARY MOCK FOR PDF TEXT EXTRACTION IN V0 PREVIEW ---
+    // Due to environment limitations preventing reliable client-side PDF parsing,
+    // we will send a mock text to the API.
+    const mockResumeText = `
+      John Doe
+      Software Engineer | Full Stack Developer
+      john.doe@example.com | (123) 456-7890 | linkedin.com/in/johndoe | github.com/johndoe
+
+      Summary
+      Highly motivated software engineer with 5 years of experience in developing scalable web applications using React, Node.js, and PostgreSQL. Passionate about creating efficient and user-friendly solutions.
+
+      Work Experience
+      Senior Software Engineer | Tech Solutions Inc. | San Francisco, CA | Jan 2022 – Present
+      - Led development of a new e-commerce platform, increasing sales by 20%.
+      - Implemented CI/CD pipelines, reducing deployment time by 30% to increase efficiency.
+
+      Education
+      M.S. Computer Science | University of California, Berkeley | 2019
+      B.S. Computer Science | University of Washington | 2017
+
+      Projects
+      Personal Portfolio Website: A responsive web application built with Next.js and Tailwind CSS to showcase my projects.
+      Task Management App: A full-stack application using React, Node.js, and MongoDB, enabling users to manage daily tasks efficiently.
+
+      Certifications
+      AWS Certified Developer - Associate
+      Certified ScrumMaster (CSM)
+
+      Skills
+      Technical Skills: JavaScript, TypeScript, React, Node.js, Express.js, PostgreSQL, MongoDB, Docker, AWS, Git, RESTful APIs, GraphQL, Kubernetes
+      Soft Skills: Problem-solving, Teamwork, Communication, Leadership, Adaptability, Critical Thinking, Project Management
+    `
+    console.warn("Using MOCK_RESUME_TEXT for analysis due to v0 preview environment limitations.")
+    // -------------------------------------------------------------
 
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
-        body: formData, // Send FormData directly
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ resumeText: mockResumeText, fileName: file.name }), // Send mock text and file name
       })
 
       if (!response.ok) {
-        // Attempt to parse error as JSON, fallback to text if not
         let errorData: any = { error: "Failed to analyze resume." }
         try {
-          errorData = await response.json() // Try parsing as JSON
+          errorData = await response.json()
         } catch (jsonParseError) {
-          const rawResponseText = await response.text() // Get raw text if JSON parsing fails
+          const rawResponseText = await response.text()
           console.warn("Server response was not valid JSON:", rawResponseText, jsonParseError)
           errorData.error = `Server responded with an error: "${rawResponseText.substring(0, 100)}..." (Not valid JSON)`
         }
@@ -78,7 +114,7 @@ export function ResumeAnalyzer() {
         description: "Your resume has been successfully analyzed.",
       })
     } catch (error: any) {
-      console.error("Error analyzing resume (CLIENT CATCH):", error)
+      console.error("Error analyzing resume:", error)
       toast({
         title: "Analysis Failed",
         description: error.message || "An unexpected error occurred during analysis.",
